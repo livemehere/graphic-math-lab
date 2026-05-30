@@ -69,4 +69,46 @@ export class Mat3 {
     m.elements[4] = c;
     return this.mul(m);
   }
+
+  invert(): Mat3 | null {
+    const e = this.elements;
+
+    const a00 = e[0],
+      a01 = e[1],
+      a02 = e[2];
+    const a10 = e[3],
+      a11 = e[4],
+      a12 = e[5];
+    const a20 = e[6],
+      a21 = e[7],
+      a22 = e[8];
+
+    const b01 = a22 * a11 - a12 * a21;
+    const b11 = -a22 * a10 + a12 * a20;
+    const b21 = a21 * a10 - a11 * a20;
+
+    const det = a00 * b01 + a01 * b11 + a02 * b21;
+
+    if (det === 0) {
+      console.warn("Determinant is 0");
+      return null;
+    }
+
+    const invDet = 1.0 / det;
+    const m = new Mat3();
+
+    m.elements[0] = b01 * invDet;
+    m.elements[1] = (-a22 * a01 + a02 * a21) * invDet;
+    m.elements[2] = (a12 * a01 - a02 * a11) * invDet;
+
+    m.elements[3] = b11 * invDet;
+    m.elements[4] = (a22 * a00 - a02 * a20) * invDet;
+    m.elements[5] = (-a12 * a00 + a02 * a10) * invDet;
+
+    m.elements[6] = b21 * invDet;
+    m.elements[7] = (-a21 * a00 + a01 * a20) * invDet;
+    m.elements[8] = (a11 * a00 - a01 * a10) * invDet;
+
+    return m;
+  }
 }

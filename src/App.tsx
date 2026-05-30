@@ -1,62 +1,86 @@
 import { useEffect, useRef } from "react";
 import { Mat3, Vec2 } from "./core/Math";
 
+interface WorldView {
+  panX: number;
+  panY: number;
+  rotate: number;
+  zoom: number;
+}
+
 export default function App() {
-  const canvsRef = useRef<HTMLCanvasElement>(null);
-  const viewRef = useRef({
-    panX: 5,
-    panY: 20,
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewRef = useRef<WorldView>({
+    panX: 0,
+    panY: 0,
     rotate: 0,
     zoom: 1,
   });
-  const pointerState = useRef({
+  const pointerStateRef = useRef({
     isDown: false,
   });
 
+  const pointsRef = useRef<Vec2[]>([
+    new Vec2(10, 10),
+    new Vec2(100, 10),
+    new Vec2(100, 100),
+    new Vec2(10, 100),
+  ]);
+
+  const getViewMat = () => {
+    const view = viewRef.current;
+    return new Mat3()
+      .translate(view.panX, view.panY)
+      .rotate(view.rotate)
+      .scale(view.zoom, view.zoom);
+  };
+
+  const screenToWorld = (x: number, y: number) => {
+    return getViewMat().invert()!.mulVec2(new Vec2(x, y));
+  };
+
   useEffect(() => {
-    const canvas = canvsRef.current!;
+    const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
 
-    const view = viewRef.current;
-
-    const stageWidth = window.innerWidth;
-    const stageHeight = window.innerHeight;
+    const dpr = window.devicePixelRatio;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const stageWidth = width * dpr;
+    const stageHeight = height * dpr;
     canvas.width = stageWidth;
     canvas.height = stageHeight;
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
 
-    const points: Vec2[] = [
-      new Vec2(10, 10),
-      new Vec2(100, 10),
-      new Vec2(100, 100),
-      new Vec2(10, 100),
-    ];
+    const points = pointsRef.current;
+
+    ctx.scale(dpr, dpr);
 
     const draw = () => {
-      const viewMat = new Mat3()
-        .translate(view.panX, view.panY)
-        .rotate(view.rotate)
-        .scale(view.zoom, view.zoom);
+      const viewMat = getViewMat();
 
       ctx.clearRect(0, 0, stageWidth, stageHeight);
 
       ctx.save();
       ctx.fillStyle = "tomato";
+      ctx.lineWidth = 1;
+
       for (let i = 0; i < points.length; i++) {
         const p = points[i];
         const vp = viewMat.mulVec2(p);
-        ctx.beginPath();
-        if (i === 0) {
-          ctx.moveTo(vp.x, vp.y);
-        } else {
-          ctx.lineTo(vp.x, vp.y);
-        }
 
+        ctx.beginPath();
         ctx.arc(vp.x, vp.y, 3, 0, Math.PI * 2);
         ctx.fill();
+        ctx.closePath();
 
-        ctx.beginPath();
         const padding = 8;
-        ctx.fillText(`(${p.x},${p.y})`, vp.x + padding, vp.y - padding);
+        ctx.fillText(
+          `(${+p.x.toFixed(1)}, ${+p.y.toFixed(1)})`,
+          vp.x + padding,
+          vp.y - padding,
+        );
       }
       ctx.restore();
 
@@ -66,14 +90,35 @@ export default function App() {
     draw();
   }, []);
 
+  const addPoint = (x: number, y: number) => {
+    const p = new Vec2(x, y);
+    pointsRef.current.push(p);
+  };
+
   const handlePointerDown = (e: React.PointerEvent) => {
-    pointerState.current.isDown = true;
+    // wheel button
+    if (e.button === 1) {
+      pointerStateRef.current.isDown = true;
+      canvasRef.current!.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const worldVec2 = screenToWorld(x, y);
+
+    // create point
+    addPoint(worldVec2.x, worldVec2.y);
   };
-  const handlePointerUp = (e: React.PointerEvent) => {
-    pointerState.current.isDown = false;
+
+  const handlePointerUp = () => {
+    pointerStateRef.current.isDown = false;
   };
+
   const handlePointerMove = (e: React.PointerEvent) => {
-    const { isDown } = pointerState.current;
+    const { isDown } = pointerStateRef.current;
     if (!isDown) return;
 
     const dx = e.movementX;
@@ -86,7 +131,7 @@ export default function App() {
   return (
     <div>
       <canvas
-        ref={canvsRef}
+        ref={canvasRef}
         style={{
           position: "absolute",
           inset: 0,
