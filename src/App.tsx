@@ -16,8 +16,19 @@ export default function App() {
     rotate: 0,
     zoom: 1,
   });
-  const pointerStateRef = useRef({
+
+  const inputStatusRef = useRef<{
+    [key:string]:boolean; // keyboard
+  }>({});
+
+  const mouseStatusRef = useRef<{
+    isDown: boolean;
+    x: number;
+    y: number;
+  }>({
     isDown: false,
+    x: 0,
+    y: 0,
   });
 
   const pointsRef = useRef<Vec2[]>([
@@ -42,6 +53,39 @@ export default function App() {
   const worldToScreen = (x: number, y: number) => {
     return getViewMat().mulVec2(new Vec2(x, y));
   }
+  const applyZoom = (mount:number, mouseX:number, mouseY:number)=>{
+    const beforeWorldPos = screenToWorld(mouseX,mouseY);
+    viewRef.current.zoom += mount;
+    const afterScreenPos = worldToScreen(beforeWorldPos.x,beforeWorldPos.y);
+
+    viewRef.current.panX += mouseX - afterScreenPos.x;
+    viewRef.current.panY += mouseY - afterScreenPos.y;
+  }
+
+  const applyRotate = (mount:number, mouseX:number, mouseY:number)=>{
+    const beforeWorldPos = screenToWorld(mouseX,mouseY);
+    viewRef.current.rotate += mount;
+    const afterScreenPos = worldToScreen(beforeWorldPos.x,beforeWorldPos.y);
+
+    viewRef.current.panX += mouseX - afterScreenPos.x;
+    viewRef.current.panY += mouseY - afterScreenPos.y;
+  }
+
+  useEffect(() => {
+    const onKeyDown = (e:KeyboardEvent)=>{
+      console.log(e.key)
+      inputStatusRef.current[e.key] = true;
+    }
+    const onKeyUp = (e:KeyboardEvent)=>{
+      inputStatusRef.current[e.key] = false;
+    }
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp) ;
+    }
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -63,6 +107,11 @@ export default function App() {
 
     const draw = () => {
       const viewMat = getViewMat();
+      const {q, e} = inputStatusRef.current;
+      if(q||e){
+        const {x,y} = mouseStatusRef.current;
+        applyRotate(0.01 * (e ? -1 : 1), x, y);
+      }
 
       ctx.clearRect(0, 0, stageWidth, stageHeight);
 
@@ -95,15 +144,7 @@ export default function App() {
     draw();
   }, []);
 
-  const addViewZoom = (mount:number, mouseX:number, mouseY:number)=>{
-    const beforeWorldPos = screenToWorld(mouseX,mouseY);
-    viewRef.current.zoom += mount;
-    const afterScreenPos = worldToScreen(beforeWorldPos.x,beforeWorldPos.y);
 
-    viewRef.current.panX += mouseX - afterScreenPos.x;
-    viewRef.current.panY += mouseY - afterScreenPos.y;
-
-  }
 
   const addPoint = (x: number, y: number) => {
     const p = new Vec2(x, y);
@@ -111,16 +152,19 @@ export default function App() {
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // wheel button
-    if (e.button === 1) {
-      pointerStateRef.current.isDown = true;
-      canvasRef.current!.setPointerCapture(e.pointerId);
-      return;
-    }
-
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    mouseStatusRef.current.x = x;
+    mouseStatusRef.current.y = y;
+
+    // wheel button
+    if (e.button === 1) {
+      mouseStatusRef.current.isDown = true;
+      canvasRef.current!.setPointerCapture(e.pointerId);
+      return;
+    }
 
     const worldVec2 = screenToWorld(x, y);
 
@@ -128,16 +172,26 @@ export default function App() {
     addPoint(worldVec2.x, worldVec2.y);
   };
 
-  const handlePointerUp = () => {
-    pointerStateRef.current.isDown = false;
+  const handlePointerUp = (e: React.PointerEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    mouseStatusRef.current.isDown = false;
+    mouseStatusRef.current.x = e.clientX - rect.left;
+    mouseStatusRef.current.y = e.clientY - rect.top;
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    const { isDown } = pointerStateRef.current;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const { isDown, x: prevX, y: prevY } = mouseStatusRef.current;
+
+    mouseStatusRef.current.x = x;
+    mouseStatusRef.current.y = y;
+
     if (!isDown) return;
 
-    const dx = e.movementX;
-    const dy = e.movementY;
+    const dx = x - prevX;
+    const dy = y - prevY;
 
     viewRef.current.panX += dx;
     viewRef.current.panY += dy;
@@ -150,12 +204,14 @@ export default function App() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    if(isUp){
-      addViewZoom(0.1,x,y);
-    }else{
-      addViewZoom(-0.1,x,y);
-    }
+    mouseStatusRef.current.x = x;
+    mouseStatusRef.current.y = y;
 
+    if(isUp){
+      applyZoom(0.1,x,y);
+    }else{
+      applyZoom(-0.1,x,y);
+    }
   }
 
   return (
