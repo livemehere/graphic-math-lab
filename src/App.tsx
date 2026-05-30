@@ -9,6 +9,9 @@ export default function App() {
     rotate: 0,
     zoom: 1,
   });
+  const pointerState = useRef({
+    isDown: false,
+  });
 
   useEffect(() => {
     const canvas = canvsRef.current!;
@@ -21,11 +24,6 @@ export default function App() {
     canvas.width = stageWidth;
     canvas.height = stageHeight;
 
-    const viewMat = new Mat3()
-      .translate(view.panX, view.panY)
-      .rotate(view.rotate)
-      .scale(view.zoom, view.zoom);
-
     const points: Vec2[] = [
       new Vec2(10, 10),
       new Vec2(100, 10),
@@ -34,6 +32,11 @@ export default function App() {
     ];
 
     const draw = () => {
+      const viewMat = new Mat3()
+        .translate(view.panX, view.panY)
+        .rotate(view.rotate)
+        .scale(view.zoom, view.zoom);
+
       ctx.clearRect(0, 0, stageWidth, stageHeight);
 
       ctx.save();
@@ -50,6 +53,10 @@ export default function App() {
 
         ctx.arc(vp.x, vp.y, 3, 0, Math.PI * 2);
         ctx.fill();
+
+        ctx.beginPath();
+        const padding = 8;
+        ctx.fillText(`(${p.x},${p.y})`, vp.x + padding, vp.y - padding);
       }
       ctx.restore();
 
@@ -58,6 +65,23 @@ export default function App() {
 
     draw();
   }, []);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerState.current.isDown = true;
+  };
+  const handlePointerUp = (e: React.PointerEvent) => {
+    pointerState.current.isDown = false;
+  };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    const { isDown } = pointerState.current;
+    if (!isDown) return;
+
+    const dx = e.movementX;
+    const dy = e.movementY;
+
+    viewRef.current.panX += dx;
+    viewRef.current.panY += dy;
+  };
 
   return (
     <div>
@@ -68,6 +92,9 @@ export default function App() {
           inset: 0,
           zIndex: 99,
         }}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerMove={handlePointerMove}
       ></canvas>
     </div>
   );
