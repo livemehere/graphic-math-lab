@@ -95,8 +95,14 @@ export default function App() {
     draw();
   }, []);
 
-  const addViewZoom = (mount:number)=>{
+  const addViewZoom = (mount:number, mouseX:number, mouseY:number)=>{
+    const beforeWorldPos = screenToWorld(mouseX,mouseY);
     viewRef.current.zoom += mount;
+    const afterScreenPos = worldToScreen(beforeWorldPos.x,beforeWorldPos.y);
+
+    viewRef.current.panX += mouseX - afterScreenPos.x;
+    viewRef.current.panY += mouseY - afterScreenPos.y;
+
   }
 
   const addPoint = (x: number, y: number) => {
@@ -140,10 +146,14 @@ export default function App() {
   const handleOnWheel = (e:React.WheelEvent)=> {
     const isUp = e.deltaY <0;
 
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
     if(isUp){
-      addViewZoom(0.1);
+      addViewZoom(0.1,x,y);
     }else{
-      addViewZoom(-0.1);
+      addViewZoom(-0.1,x,y);
     }
 
   }
