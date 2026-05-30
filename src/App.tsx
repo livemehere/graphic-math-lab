@@ -39,6 +39,10 @@ export default function App() {
     return getViewMat().invert()!.mulVec2(new Vec2(x, y));
   };
 
+  const worldToScreen = (x: number, y: number) => {
+    return getViewMat().mulVec2(new Vec2(x, y));
+  }
+
   useEffect(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
@@ -69,9 +73,10 @@ export default function App() {
       for (let i = 0; i < points.length; i++) {
         const p = points[i];
         const vp = viewMat.mulVec2(p);
+        const worldScale = viewRef.current.zoom;
 
         ctx.beginPath();
-        ctx.arc(vp.x, vp.y, 3, 0, Math.PI * 2);
+        ctx.arc(vp.x, vp.y, 3 * worldScale, 0, Math.PI * 2);
         ctx.fill();
         ctx.closePath();
 
@@ -89,6 +94,10 @@ export default function App() {
 
     draw();
   }, []);
+
+  const addViewZoom = (mount:number)=>{
+    viewRef.current.zoom += mount;
+  }
 
   const addPoint = (x: number, y: number) => {
     const p = new Vec2(x, y);
@@ -128,6 +137,17 @@ export default function App() {
     viewRef.current.panY += dy;
   };
 
+  const handleOnWheel = (e:React.WheelEvent)=> {
+    const isUp = e.deltaY <0;
+
+    if(isUp){
+      addViewZoom(0.1);
+    }else{
+      addViewZoom(-0.1);
+    }
+
+  }
+
   return (
     <div>
       <canvas
@@ -140,6 +160,7 @@ export default function App() {
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerMove={handlePointerMove}
+        onWheel={handleOnWheel}
       ></canvas>
     </div>
   );
