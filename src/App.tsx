@@ -6,6 +6,8 @@ interface WorldView {
   panY: number;
   rotate: number;
   zoom: number;
+  width: number;
+  height: number;
 }
 
 export default function App() {
@@ -15,10 +17,12 @@ export default function App() {
     panY: 0,
     rotate: 0,
     zoom: 1,
+    width: 0,
+    height: 0,
   });
 
   const inputStatusRef = useRef<{
-    [key:string]:boolean; // keyboard
+    [key: string]: boolean; // keyboard
   }>({});
 
   const mouseStatusRef = useRef<{
@@ -52,39 +56,51 @@ export default function App() {
 
   const worldToScreen = (x: number, y: number) => {
     return getViewMat().mulVec2(new Vec2(x, y));
-  }
-  const applyZoom = (mount:number, mouseX:number, mouseY:number)=>{
-    const beforeWorldPos = screenToWorld(mouseX,mouseY);
+  };
+  const applyZoom = (mount: number, mouseX: number, mouseY: number) => {
+    const beforeWorldPos = screenToWorld(mouseX, mouseY);
     viewRef.current.zoom += mount;
-    const afterScreenPos = worldToScreen(beforeWorldPos.x,beforeWorldPos.y);
+    const afterScreenPos = worldToScreen(beforeWorldPos.x, beforeWorldPos.y);
 
     viewRef.current.panX += mouseX - afterScreenPos.x;
     viewRef.current.panY += mouseY - afterScreenPos.y;
-  }
+  };
 
-  const applyRotate = (mount:number, mouseX:number, mouseY:number)=>{
-    const beforeWorldPos = screenToWorld(mouseX,mouseY);
+  const applyRotate = (mount: number, mouseX: number, mouseY: number) => {
+    const beforeWorldPos = screenToWorld(mouseX, mouseY);
     viewRef.current.rotate += mount;
-    const afterScreenPos = worldToScreen(beforeWorldPos.x,beforeWorldPos.y);
+    const afterScreenPos = worldToScreen(beforeWorldPos.x, beforeWorldPos.y);
 
     viewRef.current.panX += mouseX - afterScreenPos.x;
     viewRef.current.panY += mouseY - afterScreenPos.y;
-  }
+  };
+
+  const setViewCenterAt = (worldX: number, worldY: number) => {
+    const targetScreenPos = worldToScreen(worldX, worldY);
+    const centerScreenPos = new Vec2(
+      viewRef.current.width / 2,
+      viewRef.current.height / 2,
+    );
+    viewRef.current.panX += centerScreenPos.x - targetScreenPos.x;
+    viewRef.current.panY += centerScreenPos.y - targetScreenPos.y;
+  };
+
+  const drawGrid = () => {};
 
   useEffect(() => {
-    const onKeyDown = (e:KeyboardEvent)=>{
-      console.log(e.key)
+    const onKeyDown = (e: KeyboardEvent) => {
+      console.log(e.key);
       inputStatusRef.current[e.key] = true;
-    }
-    const onKeyUp = (e:KeyboardEvent)=>{
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
       inputStatusRef.current[e.key] = false;
-    }
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp) ;
-    }
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
   }, []);
 
   useEffect(() => {
@@ -94,6 +110,10 @@ export default function App() {
     const dpr = window.devicePixelRatio;
     const width = window.innerWidth;
     const height = window.innerHeight;
+
+    viewRef.current.width = width;
+    viewRef.current.height = height;
+
     const stageWidth = width * dpr;
     const stageHeight = height * dpr;
     canvas.width = stageWidth;
@@ -105,15 +125,19 @@ export default function App() {
 
     ctx.scale(dpr, dpr);
 
+    setViewCenterAt(0, 0);
+
     const draw = () => {
       const viewMat = getViewMat();
-      const {q, e} = inputStatusRef.current;
-      if(q||e){
-        const {x,y} = mouseStatusRef.current;
+      const { q, e } = inputStatusRef.current;
+      if (q || e) {
+        const { x, y } = mouseStatusRef.current;
         applyRotate(0.01 * (e ? -1 : 1), x, y);
       }
 
-      ctx.clearRect(0, 0, stageWidth, stageHeight);
+      ctx.clearRect(0, 0, width, height);
+
+      drawGrid();
 
       ctx.save();
       ctx.fillStyle = "tomato";
@@ -144,14 +168,13 @@ export default function App() {
     draw();
   }, []);
 
-
-
   const addPoint = (x: number, y: number) => {
     const p = new Vec2(x, y);
     pointsRef.current.push(p);
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    canvasRef.current!.setPointerCapture(e.pointerId);
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -162,7 +185,6 @@ export default function App() {
     // wheel button
     if (e.button === 1) {
       mouseStatusRef.current.isDown = true;
-      canvasRef.current!.setPointerCapture(e.pointerId);
       return;
     }
 
@@ -197,8 +219,8 @@ export default function App() {
     viewRef.current.panY += dy;
   };
 
-  const handleOnWheel = (e:React.WheelEvent)=> {
-    const isUp = e.deltaY <0;
+  const handleOnWheel = (e: React.WheelEvent) => {
+    const isUp = e.deltaY < 0;
 
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -207,12 +229,12 @@ export default function App() {
     mouseStatusRef.current.x = x;
     mouseStatusRef.current.y = y;
 
-    if(isUp){
-      applyZoom(0.1,x,y);
-    }else{
-      applyZoom(-0.1,x,y);
+    if (isUp) {
+      applyZoom(0.1, x, y);
+    } else {
+      applyZoom(-0.1, x, y);
     }
-  }
+  };
 
   return (
     <div>
