@@ -20,6 +20,14 @@ interface Ellipse {
   dash?: [number, number];
 }
 
+interface Line {
+  p1: Vec2;
+  p2: Vec2;
+  color?: string;
+  strokeWidth?: number;
+  dash?: [number, number];
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewRef = useRef<WorldView>({
@@ -48,6 +56,13 @@ export default function App() {
   const pointsRef = useRef<Vec2[]>([
     new Vec2(0, 0),
     new Vec2(Math.cos(toRad(45)) * 100, Math.sin(toRad(45)) * 100),
+  ]);
+  const linesRef = useRef<Line[]>([
+    {
+      p1: new Vec2(0, 0),
+      p2: new Vec2(Math.cos(toRad(45)) * 100, Math.sin(toRad(45)) * 100),
+      color: "#f97316",
+    },
   ]);
   const ellipsesRef = useRef<Ellipse[]>([
     {
@@ -262,6 +277,30 @@ export default function App() {
     ctx.restore();
   };
 
+  const drawLines = (ctx: CanvasRenderingContext2D) => {
+    const lines = linesRef.current;
+    const viewMat = getViewMat();
+
+    ctx.save();
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const p1 = viewMat.mulVec2(line.p1);
+      const p2 = viewMat.mulVec2(line.p2);
+
+      ctx.strokeStyle = line.color ?? "tomato";
+      ctx.lineWidth = line.strokeWidth ?? 1;
+      ctx.setLineDash(line.dash ?? []);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+      ctx.closePath();
+    }
+
+    ctx.restore();
+  };
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       inputStatusRef.current[e.key] = true;
@@ -309,6 +348,7 @@ export default function App() {
       ctx.clearRect(0, 0, width, height);
 
       drawGrid(ctx);
+      drawLines(ctx);
       drawPoints(ctx);
       drawEllipses(ctx);
 
