@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Mat3, toRad, Vec2 } from "./core/Math";
+import { Mat3, toDeg, toRad, Vec2 } from "./core/Math";
 
 interface WorldView {
   panX: number;
@@ -23,6 +23,15 @@ interface Ellipse {
 interface Line {
   p1: Vec2;
   p2: Vec2;
+  color?: string;
+  strokeWidth?: number;
+  dash?: [number, number];
+}
+
+interface Arc {
+  p1: Vec2;
+  p2: Vec2;
+  p3: Vec2;
   color?: string;
   strokeWidth?: number;
   dash?: [number, number];
@@ -54,7 +63,6 @@ export default function App() {
   });
 
   const pointsRef = useRef<Vec2[]>([
-    new Vec2(0, 0),
     new Vec2(Math.cos(toRad(45)) * 100, Math.sin(toRad(45)) * 100),
   ]);
   const linesRef = useRef<Line[]>([
@@ -71,6 +79,13 @@ export default function App() {
       rx: 100,
       ry: 100,
       color: "#334155",
+    },
+  ]);
+  const arcsRef = useRef<Arc[]>([
+    {
+      p1: new Vec2(Math.cos(toRad(0)) * 100, 0),
+      p2: new Vec2(0, 0),
+      p3: new Vec2(Math.cos(toRad(45)) * 100, Math.sin(toRad(45)) * 100),
     },
   ]);
 
@@ -301,6 +316,43 @@ export default function App() {
     ctx.restore();
   };
 
+  const drawArcs = (ctx: CanvasRenderingContext2D) => {
+    const arcs = arcsRef.current;
+    const viewMat = getViewMat();
+
+    ctx.save();
+
+    for (let i = 0; i < arcs.length; i++) {
+      const arc = arcs[i];
+      const p1 = viewMat.mulVec2(arc.p1);
+      const p2 = viewMat.mulVec2(arc.p2);
+      const p3 = viewMat.mulVec2(arc.p3);
+
+      const r = Math.hypot(p1.x - p2.x, p1.y - p2.y) * 0.3;
+      const startAngle = Math.atan2(p1.y - p2.y, p1.x - p2.x);
+      const endAngle = Math.atan2(p3.y - p2.y, p3.x - p2.x);
+
+      ctx.strokeStyle = arc.color ?? "yellow";
+      ctx.lineWidth = arc.strokeWidth ?? 1;
+      ctx.setLineDash(arc.dash ?? []);
+      ctx.beginPath();
+      ctx.arc(p2.x, p2.y, r, startAngle, endAngle);
+      ctx.stroke();
+      ctx.closePath();
+
+      const angle = endAngle - startAngle;
+      ctx.beginPath();
+      ctx.fillStyle = arc.color ?? "yellow";
+      ctx.fillText(
+        `${+toDeg(angle).toFixed(1)}°`,
+        p2.x + Math.cos(angle / 2) * r + 5,
+        p2.y + Math.sin(angle / 2) * r + 5,
+      );
+    }
+
+    ctx.restore();
+  };
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       inputStatusRef.current[e.key] = true;
@@ -351,6 +403,7 @@ export default function App() {
       drawLines(ctx);
       drawPoints(ctx);
       drawEllipses(ctx);
+      drawArcs(ctx);
 
       requestAnimationFrame(draw);
     };
