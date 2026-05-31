@@ -36,10 +36,10 @@ export default function App() {
   });
 
   const pointsRef = useRef<Vec2[]>([
-    new Vec2(10, 10),
-    new Vec2(100, 10),
+    new Vec2(0, 0),
+    new Vec2(100, 0),
     new Vec2(100, 100),
-    new Vec2(10, 100),
+    new Vec2(0, 100),
   ]);
 
   const getViewMat = () => {
@@ -50,33 +50,39 @@ export default function App() {
       .scale(view.zoom, view.zoom);
   };
 
-  const screenToWorld = (x: number, y: number) => {
-    return getViewMat().invert()!.mulVec2(new Vec2(x, y));
+  const screenToWorldPoint = (screenX: number, screenY: number) => {
+    return getViewMat().invert()!.mulVec2(new Vec2(screenX, screenY));
   };
 
-  const worldToScreen = (x: number, y: number) => {
-    return getViewMat().mulVec2(new Vec2(x, y));
+  const worldToScreenPoint = (worldX: number, worldY: number) => {
+    return getViewMat().mulVec2(new Vec2(worldX, worldY));
   };
   const applyZoom = (mount: number, mouseX: number, mouseY: number) => {
-    const beforeWorldPos = screenToWorld(mouseX, mouseY);
-    viewRef.current.zoom += mount;
-    const afterScreenPos = worldToScreen(beforeWorldPos.x, beforeWorldPos.y);
+    const beforeWorldPos = screenToWorldPoint(mouseX, mouseY);
+    viewRef.current.zoom = Math.max(0.1, viewRef.current.zoom + mount);
+    const afterScreenPos = worldToScreenPoint(
+      beforeWorldPos.x,
+      beforeWorldPos.y,
+    );
 
     viewRef.current.panX += mouseX - afterScreenPos.x;
     viewRef.current.panY += mouseY - afterScreenPos.y;
   };
 
   const applyRotate = (mount: number, mouseX: number, mouseY: number) => {
-    const beforeWorldPos = screenToWorld(mouseX, mouseY);
+    const beforeWorldPos = screenToWorldPoint(mouseX, mouseY);
     viewRef.current.rotate += mount;
-    const afterScreenPos = worldToScreen(beforeWorldPos.x, beforeWorldPos.y);
+    const afterScreenPos = worldToScreenPoint(
+      beforeWorldPos.x,
+      beforeWorldPos.y,
+    );
 
     viewRef.current.panX += mouseX - afterScreenPos.x;
     viewRef.current.panY += mouseY - afterScreenPos.y;
   };
 
   const setViewCenterAt = (worldX: number, worldY: number) => {
-    const targetScreenPos = worldToScreen(worldX, worldY);
+    const targetScreenPos = worldToScreenPoint(worldX, worldY);
     const centerScreenPos = new Vec2(
       viewRef.current.width / 2,
       viewRef.current.height / 2,
@@ -85,11 +91,102 @@ export default function App() {
     viewRef.current.panY += centerScreenPos.y - targetScreenPos.y;
   };
 
-  const drawGrid = () => {};
+  const drawGrid = (ctx: CanvasRenderingContext2D) => {
+    const { width, height } = viewRef.current;
+    const viewMat = getViewMat();
+    const invertMat = viewMat.invert()!;
+    const GAP = 100;
+    const MAJOR_STEP = 5;
+
+    const worldCorners = [
+      invertMat.mulVec2(new Vec2(0, 0)),
+      invertMat.mulVec2(new Vec2(width, 0)),
+      invertMat.mulVec2(new Vec2(width, height)),
+      invertMat.mulVec2(new Vec2(0, height)),
+    ];
+
+    const worldMinX = Math.min(...worldCorners.map((p) => p.x));
+    const worldMaxX = Math.max(...worldCorners.map((p) => p.x));
+    const worldMinY = Math.min(...worldCorners.map((p) => p.y));
+    const worldMaxY = Math.max(...worldCorners.map((p) => p.y));
+
+    const startX = Math.floor(worldMinX / GAP) * GAP;
+    const endX = Math.ceil(worldMaxX / GAP) * GAP;
+    const startY = Math.floor(worldMinY / GAP) * GAP;
+    const endY = Math.ceil(worldMaxY / GAP) * GAP;
+
+    ctx.save();
+
+    // MINOR
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255,255,255, 0.1)";
+    ctx.setLineDash([5, 5]);
+    for (let x = startX; x < endX; x += GAP) {
+      if (x === 0 || x % (GAP * MAJOR_STEP) === 0) continue;
+      const p1 = viewMat.mulVec2(new Vec2(x, startY));
+      const p2 = viewMat.mulVec2(new Vec2(x, endY));
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+    }
+
+    for (let y = startY; y < endY; y += GAP) {
+      if (y === 0 || y % (GAP * MAJOR_STEP) === 0) continue;
+      const p1 = viewMat.mulVec2(new Vec2(startX, y));
+      const p2 = viewMat.mulVec2(new Vec2(endX, y));
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+    }
+    ctx.stroke();
+
+    // MAJOR
+    // Y-axis
+    ctx.beginPath();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "rgba(100, 255, 100,0.1)";
+    for (let x = startX; x < endX; x += GAP) {
+      if (x !== 0 && x % (GAP * MAJOR_STEP) !== 0) continue;
+      const p1 = viewMat.mulVec2(new Vec2(x, startY));
+      const p2 = viewMat.mulVec2(new Vec2(x, endY));
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+    }
+    ctx.stroke();
+
+    // X-axis
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255, 100, 100,0.1)";
+    for (let y = startY; y < endY; y += GAP) {
+      if (y !== 0 && y % (GAP * MAJOR_STEP) !== 0) continue;
+      const p1 = viewMat.mulVec2(new Vec2(startX, y));
+      const p2 = viewMat.mulVec2(new Vec2(endX, y));
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+    }
+    ctx.stroke();
+
+    // Base Y-Axis
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(100, 255, 100,0.5)";
+    const p1 = viewMat.mulVec2(new Vec2(0, startY));
+    const p2 = viewMat.mulVec2(new Vec2(0, endY));
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+
+    // Base X-axis
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255, 100, 100,0.5)";
+    const p3 = viewMat.mulVec2(new Vec2(startX, 0));
+    const p4 = viewMat.mulVec2(new Vec2(endX, 0));
+    ctx.moveTo(p3.x, p3.y);
+    ctx.lineTo(p4.x, p4.y);
+    ctx.stroke();
+
+    ctx.restore();
+  };
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      console.log(e.key);
       inputStatusRef.current[e.key] = true;
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -137,7 +234,7 @@ export default function App() {
 
       ctx.clearRect(0, 0, width, height);
 
-      drawGrid();
+      drawGrid(ctx);
 
       ctx.save();
       ctx.fillStyle = "tomato";
@@ -188,7 +285,7 @@ export default function App() {
       return;
     }
 
-    const worldVec2 = screenToWorld(x, y);
+    const worldVec2 = screenToWorldPoint(x, y);
 
     // create point
     addPoint(worldVec2.x, worldVec2.y);
