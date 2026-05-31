@@ -340,13 +340,19 @@ export default function App() {
       ctx.stroke();
       ctx.closePath();
 
-      const angle = endAngle - startAngle;
+      const angleDiff = endAngle - startAngle;
+      const sweep = Math.atan2(
+        Math.sin(endAngle - startAngle),
+        Math.cos(endAngle - startAngle),
+      );
+      const midAngle = startAngle + sweep / 2;
+
       ctx.beginPath();
       ctx.fillStyle = arc.color ?? "yellow";
       ctx.fillText(
-        `${+toDeg(angle).toFixed(1)}°`,
-        p2.x + Math.cos(angle / 2) * r + 5,
-        p2.y + Math.sin(angle / 2) * r + 5,
+        `${+toDeg(angleDiff).toFixed(1)}°`,
+        p2.x + Math.cos(midAngle) * (r + 5),
+        p2.y + Math.sin(midAngle) * (r + 5),
       );
     }
 
