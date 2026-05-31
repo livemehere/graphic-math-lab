@@ -1,13 +1,23 @@
 import { useEffect, useRef } from "react";
-import { Mat3, Vec2 } from "./core/Math";
+import { Mat3, toRad, Vec2 } from "./core/Math";
 
 interface WorldView {
   panX: number;
   panY: number;
-  rotate: number;
+  rotateRad: number;
   zoom: number;
   width: number;
   height: number;
+}
+
+interface Ellipse {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  color?: string;
+  strokeWidth?: number;
+  dash?: [number, number];
 }
 
 export default function App() {
@@ -15,7 +25,7 @@ export default function App() {
   const viewRef = useRef<WorldView>({
     panX: 0,
     panY: 0,
-    rotate: 0,
+    rotateRad: 0,
     zoom: 1,
     width: 0,
     height: 0,
@@ -37,16 +47,22 @@ export default function App() {
 
   const pointsRef = useRef<Vec2[]>([
     new Vec2(0, 0),
-    new Vec2(100, 0),
-    new Vec2(100, 100),
-    new Vec2(0, 100),
+    new Vec2(Math.cos(toRad(45)) * 100, Math.sin(toRad(45)) * 100),
+  ]);
+  const ellipsesRef = useRef<Ellipse[]>([
+    {
+      cx: 0,
+      cy: 0,
+      rx: 100,
+      ry: 100,
+    },
   ]);
 
   const getViewMat = () => {
     const view = viewRef.current;
     return new Mat3()
       .translate(view.panX, view.panY)
-      .rotate(view.rotate)
+      .rotate(view.rotateRad)
       .scale(view.zoom, view.zoom);
   };
 
@@ -71,7 +87,7 @@ export default function App() {
 
   const applyRotate = (mount: number, mouseX: number, mouseY: number) => {
     const beforeWorldPos = screenToWorldPoint(mouseX, mouseY);
-    viewRef.current.rotate += mount;
+    viewRef.current.rotateRad += mount;
     const afterScreenPos = worldToScreenPoint(
       beforeWorldPos.x,
       beforeWorldPos.y,
@@ -185,6 +201,63 @@ export default function App() {
     ctx.restore();
   };
 
+  const drawPoints = (ctx: CanvasRenderingContext2D) => {
+    const points = pointsRef.current;
+    const viewMat = getViewMat();
+
+    ctx.save();
+    ctx.fillStyle = "tomato";
+    ctx.lineWidth = 1;
+
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const vp = viewMat.mulVec2(p);
+      const worldScale = viewRef.current.zoom;
+
+      ctx.beginPath();
+      ctx.arc(vp.x, vp.y, 3 * worldScale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.closePath();
+
+      const padding = 8;
+      ctx.fillText(
+        `(${+p.x.toFixed(1)}, ${+p.y.toFixed(1)})`,
+        vp.x + padding,
+        vp.y - padding,
+      );
+    }
+    ctx.restore();
+  };
+
+  const drawEllipses = (ctx: CanvasRenderingContext2D) => {
+    const ellipses = ellipsesRef.current;
+    const { rotateRad } = viewRef.current;
+    const viewMat = getViewMat();
+
+    ctx.save();
+    ctx.strokeStyle = "tomato";
+    ctx.lineWidth = 1;
+
+    for (let i = 0; i < ellipses.length; i++) {
+      const ellipse = ellipses[i];
+      const vp = viewMat.mulVec2(new Vec2(ellipse.cx, ellipse.cy));
+
+      ctx.beginPath();
+      ctx.ellipse(
+        vp.x,
+        vp.y,
+        ellipse.rx,
+        ellipse.ry,
+        -rotateRad,
+        0,
+        Math.PI * 2,
+      );
+      ctx.stroke();
+      ctx.closePath();
+    }
+    ctx.restore();
+  };
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       inputStatusRef.current[e.key] = true;
@@ -218,14 +291,11 @@ export default function App() {
     canvas.style.width = width + "px";
     canvas.style.height = height + "px";
 
-    const points = pointsRef.current;
-
     ctx.scale(dpr, dpr);
 
     setViewCenterAt(0, 0);
 
     const draw = () => {
-      const viewMat = getViewMat();
       const { q, e } = inputStatusRef.current;
       if (q || e) {
         const { x, y } = mouseStatusRef.current;
@@ -235,29 +305,8 @@ export default function App() {
       ctx.clearRect(0, 0, width, height);
 
       drawGrid(ctx);
-
-      ctx.save();
-      ctx.fillStyle = "tomato";
-      ctx.lineWidth = 1;
-
-      for (let i = 0; i < points.length; i++) {
-        const p = points[i];
-        const vp = viewMat.mulVec2(p);
-        const worldScale = viewRef.current.zoom;
-
-        ctx.beginPath();
-        ctx.arc(vp.x, vp.y, 3 * worldScale, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.closePath();
-
-        const padding = 8;
-        ctx.fillText(
-          `(${+p.x.toFixed(1)}, ${+p.y.toFixed(1)})`,
-          vp.x + padding,
-          vp.y - padding,
-        );
-      }
-      ctx.restore();
+      drawPoints(ctx);
+      drawEllipses(ctx);
 
       requestAnimationFrame(draw);
     };
