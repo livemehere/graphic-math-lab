@@ -55,6 +55,7 @@ export default function App() {
       cy: 0,
       rx: 100,
       ry: 100,
+      color: "#334155",
     },
   ]);
 
@@ -231,23 +232,26 @@ export default function App() {
 
   const drawEllipses = (ctx: CanvasRenderingContext2D) => {
     const ellipses = ellipsesRef.current;
-    const { rotateRad } = viewRef.current;
+    const { rotateRad, zoom } = viewRef.current;
     const viewMat = getViewMat();
 
     ctx.save();
-    ctx.strokeStyle = "tomato";
-    ctx.lineWidth = 1;
 
     for (let i = 0; i < ellipses.length; i++) {
       const ellipse = ellipses[i];
       const vp = viewMat.mulVec2(new Vec2(ellipse.cx, ellipse.cy));
 
+      ctx.strokeStyle = ellipse.color ?? "tomato";
+      ctx.lineWidth = ellipse.strokeWidth ?? 1;
+      if (ellipse.dash) {
+        ctx.setLineDash(ellipse.dash);
+      }
       ctx.beginPath();
       ctx.ellipse(
         vp.x,
         vp.y,
-        ellipse.rx,
-        ellipse.ry,
+        ellipse.rx * zoom,
+        ellipse.ry * zoom,
         -rotateRad,
         0,
         Math.PI * 2,
